@@ -1,0 +1,6 @@
+PySide6>=6.9,<7
+openai>=1.100,<2
+python-dotenv>=1.1,<2
+psutil>=7,<8
+pyautogui>=0.9.54,<1
+pyperclip>=1.9,<2
