@@ -36,9 +36,7 @@ jobs:
             "$env:WINDIR\System32\msvcp140.dll"
           )
           foreach ($file in $runtimeFiles) {
-            if (Test-Path $file) {
-              Copy-Item $file "dist\ALVIS\_internal\" -Force
-            }
+            if (Test-Path $file) { Copy-Item $file "dist\ALVIS\_internal\" -Force }
           }
 
       - name: Verify portable bundle
@@ -46,8 +44,7 @@ jobs:
         run: |
           if (-not (Test-Path "dist\ALVIS\ALVIS.exe")) { throw "ALVIS.exe was not created" }
           if (-not (Test-Path "dist\ALVIS\_internal\python312.dll")) { throw "python312.dll is missing" }
-          Get-ChildItem "dist\ALVIS\_internal\python312.dll"
-          Get-ChildItem "dist\ALVIS\_internal\vcruntime*.dll" -ErrorAction SilentlyContinue
+          if (-not (Test-Path "dist\ALVIS\_internal\vcruntime140.dll")) { throw "vcruntime140.dll is missing" }
 
       - name: Package
         shell: pwsh
