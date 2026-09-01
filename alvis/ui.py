@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Signal
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QLabel
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QLineEdit, QPushButton, QLabel
 
 from .agent import Agent
+from .voice import Voice
 
 
 class Worker(QObject):
@@ -21,14 +22,31 @@ class Worker(QObject):
             self.done.emit(f"Помилка ALVIS: {exc}")
 
 
+class VoiceWorker(QObject):
+    done = Signal(str)
+
+    def __init__(self, voice: Voice):
+        super().__init__()
+        self.voice = voice
+
+    def run(self):
+        try:
+            self.done.emit(self.voice.record_and_transcribe())
+        except Exception as exc:
+            self.done.emit(f"[VOICE_ERROR] {exc}")
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ALVIS")
         self.resize(900, 650)
         self.agent = Agent()
+        self.voice = Voice()
         self.thread = None
         self.worker = None
+        self.voice_thread = None
+        self.voice_worker = None
 
         root = QWidget()
         layout = QVBoxLayout(root)
@@ -38,19 +56,24 @@ class MainWindow(QMainWindow):
         self.chat.setReadOnly(True)
         self.input = QLineEdit()
         self.input.setPlaceholderText("Напиши команду українською або англійською…")
+        row = QHBoxLayout()
         self.send = QPushButton("Виконати")
+        self.voice_button = QPushButton("🎙 Говорити")
         self.send.clicked.connect(self.submit)
+        self.voice_button.clicked.connect(self.record_voice)
         self.input.returnPressed.connect(self.submit)
+        row.addWidget(self.input, 1)
+        row.addWidget(self.voice_button)
+        row.addWidget(self.send)
         layout.addWidget(title)
         layout.addWidget(self.chat, 1)
-        layout.addWidget(self.input)
-        layout.addWidget(self.send)
+        layout.addLayout(row)
         self.setCentralWidget(root)
         self.chat.append("<b>ALVIS:</b> Онлайн. Чим допомогти?")
 
     def submit(self):
         text = self.input.text().strip()
-        if not text or self.thread:
+        if not text or self.thread or self.voice_thread:
             return
         self.input.clear()
         self.chat.append(f"<b>Ти:</b> {text}")
@@ -64,8 +87,31 @@ class MainWindow(QMainWindow):
         self.thread.finished.connect(self.cleanup)
         self.thread.start()
 
+    def record_voice(self):
+        if self.thread or self.voice_thread:
+            return
+        self.voice_button.setEnabled(False)
+        self.chat.append("<b>ALVIS:</b> Слухаю 6 секунд…")
+        self.voice_thread = QThread()
+        self.voice_worker = VoiceWorker(self.voice)
+        self.voice_worker.moveToThread(self.voice_thread)
+        self.voice_thread.started.connect(self.voice_worker.run)
+        self.voice_worker.done.connect(self.voice_result)
+        self.voice_worker.done.connect(self.voice_thread.quit)
+        self.voice_thread.finished.connect(self.voice_cleanup)
+        self.voice_thread.start()
+
+    def voice_result(self, text: str):
+        if text.startswith("[VOICE_ERROR]"):
+            self.chat.append(f"<b>ALVIS:</b> {text}")
+            return
+        self.input.setText(text)
+        self.chat.append(f"<b>Ти:</b> {text}")
+        self.submit()
+
     def reply(self, text: str):
         self.chat.append(f"<b>ALVIS:</b> {text}")
+        self.voice.speak(text)
 
     def cleanup(self):
         self.send.setEnabled(True)
@@ -73,6 +119,13 @@ class MainWindow(QMainWindow):
         self.worker.deleteLater()
         self.thread = None
         self.worker = None
+
+    def voice_cleanup(self):
+        self.voice_button.setEnabled(True)
+        self.voice_thread.deleteLater()
+        self.voice_worker.deleteLater()
+        self.voice_thread = None
+        self.voice_worker = None
 
 
 def run():
