@@ -1,0 +1,56 @@
+name: Build ALVIS Glasses
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'glasses/**'
+      - '.github/workflows/build-alvis-glasses.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout ALVIS
+        uses: actions/checkout@v4
+
+      - name: Checkout HeyCyan bridge source
+        run: |
+          git clone --depth 1 https://github.com/FerSaiyan/Alternative-HeyCyan-App-and-SDK.git heycyan-source
+
+      - name: Brand as ALVIS Glasses
+        working-directory: heycyan-source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for p in Path('android/CyanBridge').rglob('strings.xml'):
+              text = p.read_text(encoding='utf-8')
+              text = text.replace('<string name="app_name">CyanBridge</string>', '<string name="app_name">ALVIS Glasses</string>')
+              p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Build Android APK
+        working-directory: heycyan-source/android/CyanBridge
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          find heycyan-source/android/CyanBridge/app/build/outputs/apk -type f -name '*.apk' -print -exec cp {} dist/ALVIS-Glasses-debug.apk \;
+          test -f dist/ALVIS-Glasses-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALVIS-Glasses-Android
+          path: dist/ALVIS-Glasses-debug.apk
+          if-no-files-found: error
