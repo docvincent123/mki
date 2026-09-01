@@ -18,7 +18,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
       - name: Build EXE
-        run: pyinstaller --noconfirm --clean --windowed --name ALVIS alvis/__main__.py
+        run: pyinstaller --noconfirm --clean --windowed --name ALVIS run_alvis.py
       - name: Package
         shell: pwsh
         run: Compress-Archive -Path dist/ALVIS/* -DestinationPath ALVIS-Windows.zip
