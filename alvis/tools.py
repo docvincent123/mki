@@ -71,6 +71,46 @@ def system_info() -> str:
     ])
 
 
+def list_windows() -> str:
+    from pywinauto import Desktop
+    windows = Desktop(backend="uia").windows(visible_only=True)
+    rows = []
+    for w in windows[:100]:
+        title = w.window_text().strip()
+        if title:
+            rows.append(f"{w.handle}: {title}")
+    return "\n".join(rows) or "No visible titled windows"
+
+
+def inspect_window(title: str) -> str:
+    from pywinauto import Desktop
+    wins = Desktop(backend="uia").windows(title_re=f".*{title}.*", visible_only=True)
+    if not wins:
+        raise ToolError(f"Window not found: {title}")
+    root = wins[0]
+    rows = []
+    for c in root.descendants(depth=3)[:250]:
+        name = c.window_text().strip()
+        if name:
+            rows.append(f"{c.control_type()} | {name}")
+    return "\n".join(rows) or "No named controls found"
+
+
+def click_control(title: str, control_text: str) -> str:
+    from pywinauto import Desktop
+    wins = Desktop(backend="uia").windows(title_re=f".*{title}.*", visible_only=True)
+    if not wins:
+        raise ToolError(f"Window not found: {title}")
+    root = wins[0]
+    matches = root.descendants(title=control_text)
+    if not matches:
+        matches = root.descendants(best_match=control_text)
+    if not matches:
+        raise ToolError(f"Control not found: {control_text}")
+    matches[0].click_input()
+    return f"Clicked '{control_text}' in '{title}'"
+
+
 TOOLS: dict[str, Callable[..., Any]] = {
     "open_url": open_url,
     "open_app": open_app,
@@ -78,13 +118,19 @@ TOOLS: dict[str, Callable[..., Any]] = {
     "write_file": write_file,
     "list_files": list_files,
     "system_info": system_info,
+    "list_windows": list_windows,
+    "inspect_window": inspect_window,
+    "click_control": click_control,
 }
 
 SCHEMAS = [
-    {"type": "function", "name": "open_url", "description": "Open an http(s) URL in the default browser.", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}},
-    {"type": "function", "name": "open_app", "description": "Open a Windows application. Prefer known aliases: notepad, calculator, explorer, terminal.", "parameters": {"type": "object", "properties": {"app": {"type": "string"}}, "required": ["app"]}},
-    {"type": "function", "name": "read_file", "description": "Read a UTF-8 text file inside the ALVIS workspace.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
-    {"type": "function", "name": "write_file", "description": "Write a UTF-8 text file inside the ALVIS workspace.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]}},
-    {"type": "function", "name": "list_files", "description": "List files and directories inside the ALVIS workspace.", "parameters": {"type": "object", "properties": {"path": {"type": "string", "default": "."}}, "required": []}},
-    {"type": "function", "name": "system_info", "description": "Get basic Windows system information.", "parameters": {"type": "object", "properties": {}, "required": []}},
+    {"name": "open_url", "description": "Open an http(s) URL in the default browser.", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}},
+    {"name": "open_app", "description": "Open a Windows application. Prefer known aliases: notepad, calculator, explorer, terminal.", "parameters": {"type": "object", "properties": {"app": {"type": "string"}}, "required": ["app"]}},
+    {"name": "read_file", "description": "Read a UTF-8 text file inside the ALVIS workspace.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
+    {"name": "write_file", "description": "Write a UTF-8 text file inside the ALVIS workspace.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]}},
+    {"name": "list_files", "description": "List files and directories inside the ALVIS workspace.", "parameters": {"type": "object", "properties": {"path": {"type": "string", "default": "."}}, "required": []}},
+    {"name": "system_info", "description": "Get basic Windows system information.", "parameters": {"type": "object", "properties": {}, "required": []}},
+    {"name": "list_windows", "description": "List visible titled Windows application windows and handles.", "parameters": {"type": "object", "properties": {}, "required": []}},
+    {"name": "inspect_window", "description": "Inspect named controls in a visible Windows application window.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}},
+    {"name": "click_control", "description": "Click a named UI control in a visible Windows application window.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "control_text": {"type": "string"}}, "required": ["title", "control_text"]}},
 ]
